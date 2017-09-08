@@ -13,14 +13,14 @@ module top_module (input clock,
                    output reg [7:0] seq,
                    output reg [7:0] an);
 // Instantiation of other modules
-wire [3:0] coin_val;
-wire [3:0] goods_val;
-wire [3:0] goods_val_now;
+wire [4:0] coin_val;
+wire [4:0] goods_val;
+wire [4:0] goods_val_now;
 wire hold_ind;
 wire coin_ind;
 wire drinktk_ind;
 wire charge_ind;
-wire [3:0] charge_val;
+wire [4:0] charge_val;
 wire new_clock;
 wire [7:0] seq1;
 wire [7:0] seq2;
@@ -37,7 +37,7 @@ wire charge_signal;
 
 frequency_divider devider(clock, new_clock);
 main_controller controller(reset, clock, op_start, coin_val, goods_val, cancel_flag, drinktk_signal, charge_signal, hold_ind, coin_ind, drinktk_ind, charge_ind, goods_val_now, charge_val);
-coin_inserter inserter(hold_ind, coin_confirm, val_mark, coin_val);
+coin_inserter inserter(hold_ind, (hold_ind | coin_ind) & (~drinktk_ind) & (~charge_ind) , coin_confirm, val_mark, coin_val);
 goods_picker picker(goods_mark, goods_val);
 hello_printer hello((~hold_ind & reset), new_clock, seq1, an1);
 digit_printer goods((hold_ind & (~coin_ind) & (~charge_ind) & (~drinktk_ind)), new_clock, goods_val_now, seq2, an2);
@@ -61,9 +61,10 @@ end
 endmodule
 
 module coin_inserter (input reset,
+                    input switch,
                     input coin_confirm,
                     input val_mark,
-                    output reg [3:0] coin_val);
+                    output reg [4:0] coin_val);
 // Inserting coins and valuing
 initial
 begin
@@ -75,21 +76,24 @@ begin
   if (!reset) coin_val <= 0;
   else
   begin
-    if (val_mark == 0)
-        coin_val <= coin_val + 1;
-    else
-        coin_val <= coin_val + 10;
+    if (switch == 1)
+    begin
+      if (val_mark == 0)
+          coin_val <= coin_val + 1;
+      else
+          coin_val <= coin_val + 10;
+    end
   end
 end
 endmodule
 
 module goods_picker (input goods_mark,
-                  output reg [3:0] goods_val);
+                  output reg [4:0] goods_val);
 // Picking up certain goods and valuing
 always @ (goods_mark)
 begin
   if (goods_mark == 0)
-    goods_val = 2;
+    goods_val = 18;
   else
     goods_val = 5;
 end
@@ -98,8 +102,8 @@ endmodule
 module main_controller (input reset,
                 input clock,
                 input op_start,
-                input [3:0] coin_val,
-                input [3:0] goods_val,
+                input [4:0] coin_val,
+                input [4:0] goods_val,
                 input cancel_flag,
                 input drinktk_signal,
                 input charge_signal,
@@ -107,8 +111,8 @@ module main_controller (input reset,
                 output reg coin_ind,
                 output reg drinktk_ind,
                 output reg charge_ind,
-                output reg [3:0] goods_val_now,
-                output reg [3:0] charge_val);
+                output reg [4:0] goods_val_now,
+                output reg [4:0] charge_val);
 // Maintaining a state machine
 reg [4:0] current_state, next_state;
 reg [31:0] count;
@@ -139,7 +143,7 @@ end
 always @ (*)
 begin
   next_state = S0;
-  case (current_state)                                                                                                                                                                                                     
+  case (current_state)
     S0: begin
       if (reset == 1)
         next_state = S1;
@@ -164,7 +168,7 @@ begin
     S3: begin
       if (cancel_flag == 1)
         next_state = S5;
-      else if (coin_val >= goods_val_now)
+      else if ((coin_val[3:0] > goods_val_now[3:0]) || ((coin_val[3:0] == goods_val_now[3:0] && (goods_val_now[4:4] == 0))))
         next_state = S4;
       else
         next_state = S3;
@@ -172,7 +176,7 @@ begin
     S4: begin
       if (drinktk_signal)
         begin
-        if (coin_val - goods_val_now == 4'b0000)
+        if ((coin_val[3:0] - goods_val_now[3:0] == 4'b0000) && (goods_val_now[4:4] != 1))
           next_state = S1;
         else
           next_state = S5;
@@ -206,7 +210,19 @@ begin
       S2: begin hold_ind <= 1; end
       S3: coin_ind <= 1;
       S4: begin drinktk_ind <= 1; coin_ind <= 0; end
-      S5: begin drinktk_ind <= 0; coin_ind <= 0; charge_ind <= 1; charge_val <= (coin_val > goods_val_now)?(coin_val - goods_val_now):(coin_val); end
+      S5: begin 
+        drinktk_ind <= 0; 
+        coin_ind <= 0; 
+        charge_ind <= 1; 
+        //charge_val <= (coin_val > goods_val_now[3:0])?(coin_val - goods_val_now[3:0]):(coin_val); 
+        if (coin_val[3:0] > goods_val_now[3:0])
+          if (goods_val_now[4:4] == 1)
+            charge_val = (coin_val[3:0] - goods_val_now[3:0] - 1) | 5'b10000;
+          else
+            charge_val = coin_val - goods_val_now;
+        else
+          charge_val <= coin_val;
+      end
       default:  begin
         hold_ind <= 0;
         coin_ind <= 0;

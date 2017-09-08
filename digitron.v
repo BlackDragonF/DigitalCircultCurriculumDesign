@@ -104,7 +104,7 @@ endmodule
 
 module digit_printer (input switch,
                       input clock,
-                      input [3:0] val,
+                      input [4:0] val,
                       output reg [7:0] seq,
                       output reg [7:0] an);
 parameter digit_0 = 8'b00000011,
@@ -118,14 +118,18 @@ parameter digit_0 = 8'b00000011,
           digit_8 = 8'b00000001,
           digit_9 = 8'b00001001,
           non_digit = 8'b11111111;
-parameter A6 = 8'b10111111,
-          A7 = 8'b01111111;
+parameter A5 = 8'b11011111,
+           A6 = 8'b10111111,
+           A7 = 8'b01111111;
 
-reg  count;
+reg [2:0] count;
+reg half;
 reg [3:0] low_bit;
 reg [3:0] high_bit;
+reg [7:0] small_digit;
 reg [7:0] low_digit;
 reg [7:0] high_digit;
+
 
 initial
 begin
@@ -134,14 +138,15 @@ end
 
 always @ (val)
 begin
-  low_bit = val % 10;
-  high_bit = val / 10;
+  low_bit = val[3:0] % 10;
+  high_bit = val[3:0] / 10;
+  half = val[4:4];
 end
 
 always @ (high_bit)
 begin
   case (high_bit)
-  0: high_digit = digit_0;
+  0: high_digit = non_digit;
   1: high_digit = digit_1;
   2: high_digit = digit_2;
   3: high_digit = digit_3;
@@ -169,19 +174,29 @@ begin
   8: low_digit = digit_8;
   9: low_digit = digit_9;
   default: low_digit = non_digit;
-endcase
+  endcase
+  low_digit = low_digit & 8'b11111110;
 end
+always @ (half)
+begin
+  case (half)
+  0: small_digit <= digit_0;
+  1: small_digit <= digit_5;
+  endcase
+end
+
 
 always @ (posedge clock)
 begin
   if (switch)
   begin
     case (count)
-    0: begin seq <= high_digit; an <= A6; end
-    1: begin seq <= low_digit; an <= A7; end
-    default: begin seq <= high_digit; an <= A6; end
+    0: begin seq <= high_digit; an <= A5; end
+    1: begin seq <= low_digit; an <= A6; end
+    2: begin seq <= small_digit; an <= A7; end
+    default: begin seq <= high_digit; an <= A5; end
     endcase
-    count <= ~count;
+    if (count == 3) count <= 0; else count <= count + 1;
   end
   else
   begin
@@ -190,3 +205,4 @@ begin
   end
 end
 endmodule
+
