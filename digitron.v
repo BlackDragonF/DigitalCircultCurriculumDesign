@@ -206,3 +206,20 @@ begin
 end
 endmodule
 
+module bi_printer (input [7:0] seq1,
+                  input [7:0] an1,
+                  input [7:0] seq2,
+                  input [7:0] an2,
+                  input clock,
+                  output reg [7:0] seq,
+                  output reg [7:0] an);
+
+reg [4:0] count;
+
+always @ (posedge clock)
+begin
+  if (count < 9) begin seq <= seq1; an <= an1; end
+  else if (count < 18) begin seq <= seq2; an <= an2; end
+   if (count == 18) count <= 0; else count <= count + 1;
+end
+endmodule

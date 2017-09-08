@@ -27,8 +27,10 @@ wire [7:0] seq2;
 wire [7:0] seq3;
 wire [7:0] seq4;
 wire [7:0] seq5;
+wire [7:0] seq2_3;
 wire [7:0] an1;
 wire [7:0] an2;
+wire [7:0] an2_3;
 wire [7:0] an3;
 wire [7:0] an4;
 wire [7:0] an5;
@@ -40,7 +42,8 @@ main_controller controller(reset, clock, op_start, coin_val, goods_val, cancel_f
 coin_inserter inserter(hold_ind, (hold_ind | coin_ind) & (~drinktk_ind) & (~charge_ind) , coin_confirm, val_mark, coin_val);
 goods_picker picker(goods_mark, goods_val);
 hello_printer hello((~hold_ind & reset), new_clock, seq1, an1);
-digit_printer goods((hold_ind & (~coin_ind) & (~charge_ind) & (~drinktk_ind)), new_clock, goods_val_now, seq2, an2);
+digit_printer goods(((hold_ind | coin_ind) & (~charge_ind) & (~drinktk_ind)), new_clock, goods_val_now, seq2, an2);
+bi_printer goods_coin(seq2, (~((~an2) >> 5)), seq3, an3, new_clock, seq2_3, an2_3);
 digit_printer coin(coin_ind, new_clock, coin_val, seq3, an3);
 digit_printer charge(charge_ind, new_clock, charge_val, seq4, an4);
 fin_printer fin(drinktk_ind, new_clock, seq5, an5);
@@ -55,8 +58,8 @@ assign charge_led = charge_ind;
 
 always @ (*)
 begin
-  seq = ~((~seq1) | (~seq2) | (~seq3) | (~seq4) | (~seq5));
-  an = ~((~an1) | (~an2) | (~an3) | (~an4) | (~an5));
+  seq = ~((~seq1) | (~seq2_3) | (~seq4) | (~seq5));
+  an = ~((~an1) | (~an2_3) | (~an4) | (~an5));
 end
 endmodule
 
@@ -210,11 +213,11 @@ begin
       S2: begin hold_ind <= 1; end
       S3: coin_ind <= 1;
       S4: begin drinktk_ind <= 1; coin_ind <= 0; end
-      S5: begin 
-        drinktk_ind <= 0; 
-        coin_ind <= 0; 
-        charge_ind <= 1; 
-        //charge_val <= (coin_val > goods_val_now[3:0])?(coin_val - goods_val_now[3:0]):(coin_val); 
+      S5: begin
+        drinktk_ind <= 0;
+        coin_ind <= 0;
+        charge_ind <= 1;
+        //charge_val <= (coin_val > goods_val_now[3:0])?(coin_val - goods_val_now[3:0]):(coin_val);
         if (coin_val[3:0] > goods_val_now[3:0])
           if (goods_val_now[4:4] == 1)
             charge_val = (coin_val[3:0] - goods_val_now[3:0] - 1) | 5'b10000;
